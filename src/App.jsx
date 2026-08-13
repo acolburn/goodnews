@@ -40,6 +40,9 @@ const extractImageFromHtml = (html) => {
   return match?.[1] || "";
 };
 
+const getScreenshotPreview = (url) =>
+  `https://image.thum.io/get/width/1200/${url}`;
+
 // Decode HTML entities in a string
 // This is necessary because some feeds may encode HTML entities multiple times
 // For example, &amp; becomes &. I had issues with #039;
@@ -81,6 +84,11 @@ const getPreviewImage = async (url, options = {}) => {
         previewImageCache.set(url, fallbackImage);
         return fallbackImage;
       }
+      if (!image) {
+        const screenshot = getScreenshotPreview(url);
+        previewImageCache.set(url, screenshot);
+        return screenshot;
+      }
       // Cache the image URL for future requests
       previewImageCache.set(url, image);
       return image;
@@ -91,10 +99,24 @@ const getPreviewImage = async (url, options = {}) => {
     });
 
     const image = response.data?.data?.image?.url || fallbackImage;
+    if (!image && host.includes("positive.news")) {
+      const screenshot = getScreenshotPreview(url);
+      previewImageCache.set(url, screenshot);
+      return screenshot;
+    }
     // Cache the image URL for future requests
     previewImageCache.set(url, image);
     return image;
   } catch (error) {
+    const host = new URL(url).hostname;
+    if (
+      host.includes("goodnewsnetwork.org") ||
+      host.includes("positive.news")
+    ) {
+      const screenshot = getScreenshotPreview(url);
+      previewImageCache.set(url, screenshot);
+      return screenshot;
+    }
     if (thumbnail || descriptionHtml) {
       const image = thumbnail || extractImageFromHtml(descriptionHtml);
       previewImageCache.set(url, image);
