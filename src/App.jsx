@@ -3,35 +3,12 @@ import axios from "axios";
 import DOMPurify from "dompurify";
 import Header from "./Header";
 
-// Good News Network runs WordPress.
-// Their public WP API can return each post and featured media by slug.
-// Microlink doesn't work for GNN, so we need to fetch the image ourselves.
-// This avoids Microlink for that domain and gets a real image URL.
-const getGoodNewsNetworkImage = async (articleUrl) => {
-  try {
-    const slug = new URL(articleUrl).pathname.split("/").filter(Boolean).pop();
-    if (!slug) return "";
-
-    const response = await axios.get(
-      "https://www.goodnewsnetwork.org/wp-json/wp/v2/posts",
-      {
-        params: { slug, _embed: 1 },
-      },
-    );
-
-    const post = response.data?.[0];
-    const featured =
-      post?._embedded?.["wp:featuredmedia"]?.[0]?.source_url || "";
-    if (featured) return featured;
-
-    const rendered = post?.content?.rendered || "";
-    const match = rendered.match(/<img[^>]+src=["']([^"']+)["']/i);
-    return match?.[1] || "";
-  } catch (error) {
-    console.error("Failed GNN image lookup:", error);
-    return "";
-  }
-};
+const FEED_URLS = [
+  "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.sunnyskyz.com%2Frss%2F",
+  "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.positive.news%2Ffeed%2F",
+  "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.goodnewsnetwork.org%2Fcategory%2Fnews%2Ffeed",
+  "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.optimistdaily.com%2Ffeed%2F",
+];
 
 const previewImageCache = new Map();
 const extractImageFromHtml = (html) => {
@@ -71,13 +48,11 @@ const decodeHtmlEntities = (text = "") => {
 const getPreviewImage = async (url, options = {}) => {
   const { descriptionHtml = "", thumbnail = "" } = options;
   try {
-    // Check if the image URL is already cached
     if (previewImageCache.has(url)) {
       return previewImageCache.get(url);
     }
-    // Check where the URL is from to determine how to fetch the image
+
     const host = new URL(url).hostname;
-    // Prefer feed-provided image data when available to avoid unnecessary API calls.
     const fallbackImage = thumbnail || extractImageFromHtml(descriptionHtml);
 
     if (
@@ -91,30 +66,16 @@ const getPreviewImage = async (url, options = {}) => {
       }
     }
 
-    // If it is from Optimist Daily, use the fallback image
     if (host.includes("optimistdaily.com") && fallbackImage) {
       previewImageCache.set(url, fallbackImage);
       return fallbackImage;
     }
 
-    // If it is from Good News Network, use the custom function to get the image
-    if (host.includes("goodnewsnetwork.org")) {
-      const image = await getGoodNewsNetworkImage(url);
-      if (!image && fallbackImage) {
-        previewImageCache.set(url, fallbackImage);
-        return fallbackImage;
-      }
-      // Cache the image URL for future requests
-      previewImageCache.set(url, image);
-      return image;
-    }
-    // Otherwise, use Microlink for other URLs
-    const response = await axios.get("https://api.microlink.io/", {
+    const previewResponse = await axios.get("https://api.microlink.io/", {
       params: { url },
     });
 
-    const image = response.data?.data?.image?.url || fallbackImage;
-    // Cache the image URL for future requests
+    const image = previewResponse.data?.data?.image?.url || fallbackImage;
     previewImageCache.set(url, image);
     return image;
   } catch (error) {
@@ -144,21 +105,19 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const feedUrls = FEED_URLS;
 
     async function fetchPosts() {
       try {
-        const feedUrls = [
-          "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.sunnyskyz.com%2Frss%2F",
-          "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.positive.news%2Ffeed%2F",
-          "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.goodnewsnetwork.org%2Fcategory%2Fnews%2Ffeed",
-          "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.optimistdaily.com%2Ffeed%2F",
-        ].map((url) => url.trim());
+        const normalizedFeedUrls = feedUrls.map((url) => url.trim());
 
         const [posNews, goodNews, optimistDaily, sunnyskyz] = await Promise.all(
-          feedUrls.map((url) => axios.get(url, { signal: controller.signal })),
+          normalizedFeedUrls.map((url) =>
+            axios.get(url, { signal: controller.signal }),
+          ),
         );
 
-        const items = [
+        const feedItems = [
           ...posNews.data.items,
           ...goodNews.data.items,
           ...optimistDaily.data.items,
@@ -167,8 +126,8 @@ function App() {
 
         // Fetch preview images for each post (async/await)
         // Use Promise.all to wait for all preview image fetches to complete
-        const posts = await Promise.all(
-          items.map(async (item) => {
+        const articleCards = await Promise.all(
+          feedItems.map(async (item) => {
             const rawDescription = item.description || "";
             const previewImage = await getPreviewImage(item.link, {
               descriptionHtml: rawDescription,
@@ -184,7 +143,7 @@ function App() {
           }),
         );
 
-        setPosts(posts);
+        setPosts(articleCards);
       } catch (err) {
         // Ignore the error if the request was cancelled
         if (axios.isCancel(err) || err.name === "CanceledError") return; // request was cancelled
