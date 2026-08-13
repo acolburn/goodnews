@@ -1,16 +1,24 @@
-# React + Vite
+# Good News
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This app is set up for Netlify deployment.
 
-Currently, two official plugins are available:
+## Local development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+## Deploy to Netlify
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Push the repository to GitHub.
+2. In Netlify, choose New site from Git and connect the repository.
+3. Use these build settings:
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+4. Netlify will read `netlify.toml`, including the function in `netlify/functions/article-image.mjs`.
 
-## Expanding the ESLint configuration
+## Notes
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- GitHub Pages deployment is no longer used.
+- The app keeps the GitHub Pages base path only when `NETLIFY` is not set, so Netlify builds work from `/`.

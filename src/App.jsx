@@ -40,8 +40,17 @@ const extractImageFromHtml = (html) => {
   return match?.[1] || "";
 };
 
-const getScreenshotPreview = (url) =>
-  `https://image.thum.io/get/width/1200/${url}`;
+const getArticleImageFromNetlify = async (url) => {
+  try {
+    const response = await axios.get("/.netlify/functions/article-image", {
+      params: { url },
+    });
+
+    return response.data?.image || "";
+  } catch {
+    return "";
+  }
+};
 
 // Decode HTML entities in a string
 // This is necessary because some feeds may encode HTML entities multiple times
@@ -71,6 +80,17 @@ const getPreviewImage = async (url, options = {}) => {
     // Prefer feed-provided image data when available to avoid unnecessary API calls.
     const fallbackImage = thumbnail || extractImageFromHtml(descriptionHtml);
 
+    if (
+      host.includes("goodnewsnetwork.org") ||
+      host.includes("positive.news")
+    ) {
+      const articleImage = await getArticleImageFromNetlify(url);
+      if (articleImage) {
+        previewImageCache.set(url, articleImage);
+        return articleImage;
+      }
+    }
+
     // If it is from Optimist Daily, use the fallback image
     if (host.includes("optimistdaily.com") && fallbackImage) {
       previewImageCache.set(url, fallbackImage);
@@ -84,11 +104,6 @@ const getPreviewImage = async (url, options = {}) => {
         previewImageCache.set(url, fallbackImage);
         return fallbackImage;
       }
-      if (!image) {
-        const screenshot = getScreenshotPreview(url);
-        previewImageCache.set(url, screenshot);
-        return screenshot;
-      }
       // Cache the image URL for future requests
       previewImageCache.set(url, image);
       return image;
@@ -99,24 +114,10 @@ const getPreviewImage = async (url, options = {}) => {
     });
 
     const image = response.data?.data?.image?.url || fallbackImage;
-    if (!image && host.includes("positive.news")) {
-      const screenshot = getScreenshotPreview(url);
-      previewImageCache.set(url, screenshot);
-      return screenshot;
-    }
     // Cache the image URL for future requests
     previewImageCache.set(url, image);
     return image;
   } catch (error) {
-    const host = new URL(url).hostname;
-    if (
-      host.includes("goodnewsnetwork.org") ||
-      host.includes("positive.news")
-    ) {
-      const screenshot = getScreenshotPreview(url);
-      previewImageCache.set(url, screenshot);
-      return screenshot;
-    }
     if (thumbnail || descriptionHtml) {
       const image = thumbnail || extractImageFromHtml(descriptionHtml);
       previewImageCache.set(url, image);
@@ -205,7 +206,6 @@ function App() {
     <main className="relative mx-auto min-h-screen max-w-6xl px-5 pb-20 sm:px-8 lg:px-10">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.7),transparent_65%)]" />
       <Header />
-
       <section className="grid gap-7 lg:grid-cols-2">
         {posts.map((post) => (
           <article
