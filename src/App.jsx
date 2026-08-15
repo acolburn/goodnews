@@ -119,8 +119,8 @@ function App() {
 
         const feedItems = feedResponses
           .filter((result) => result.status === "fulfilled")
-          .flatMap((result) => result.value.data?.items ?? [])
-          .slice(0, 40); // Limit to 40 posts
+          .flatMap((result) => (result.value.data?.items ?? []).slice(0, 7))
+          .slice(0, 28); // Up to 7 posts per feed
 
         // Render quickly with feed-provided images, then upgrade in the background.
         const articleCards = feedItems.map((item) => {
