@@ -111,39 +111,50 @@ function App() {
       try {
         const normalizedFeedUrls = feedUrls.map((url) => url.trim());
 
-        const [posNews, goodNews, optimistDaily, sunnyskyz] = await Promise.all(
+        const feedResponses = await Promise.allSettled(
           normalizedFeedUrls.map((url) =>
             axios.get(url, { signal: controller.signal }),
           ),
         );
 
-        const feedItems = [
-          ...posNews.data.items,
-          ...goodNews.data.items,
-          ...optimistDaily.data.items,
-          ...sunnyskyz.data.items,
-        ].slice(0, 40); // Limit to 40 posts
+        const feedItems = feedResponses
+          .filter((result) => result.status === "fulfilled")
+          .flatMap((result) => result.value.data?.items ?? [])
+          .slice(0, 40); // Limit to 40 posts
 
-        // Fetch preview images for each post (async/await)
-        // Use Promise.all to wait for all preview image fetches to complete
-        const articleCards = await Promise.all(
-          feedItems.map(async (item) => {
-            const rawDescription = item.description || "";
-            const previewImage = await getPreviewImage(item.link, {
-              descriptionHtml: rawDescription,
-              thumbnail: item.thumbnail,
-            });
-            return {
-              category: item.categories?.[0] ?? "News",
-              title: decodeHtmlEntities(item.title),
-              description: getFirstParagraph(rawDescription),
-              link: item.link,
-              image: previewImage,
-            };
-          }),
-        );
+        // Render quickly with feed-provided images, then upgrade in the background.
+        const articleCards = feedItems.map((item) => {
+          const rawDescription = item.description || "";
+          const fallbackImage = item.thumbnail || extractImageFromHtml(rawDescription);
+
+          return {
+            category: item.categories?.[0] ?? "News",
+            title: decodeHtmlEntities(item.title),
+            description: getFirstParagraph(rawDescription),
+            link: item.link,
+            image: fallbackImage,
+          };
+        });
 
         setPosts(articleCards);
+
+        feedItems.forEach(async (item) => {
+          const rawDescription = item.description || "";
+          const previewImage = await getPreviewImage(item.link, {
+            descriptionHtml: rawDescription,
+            thumbnail: item.thumbnail,
+          });
+
+          if (!previewImage || controller.signal.aborted) return;
+
+          setPosts((previousPosts) =>
+            previousPosts.map((post) =>
+              post.link === item.link && post.image !== previewImage
+                ? { ...post, image: previewImage }
+                : post,
+            ),
+          );
+        });
       } catch (err) {
         // Ignore the error if the request was cancelled
         if (axios.isCancel(err) || err.name === "CanceledError") return; // request was cancelled
