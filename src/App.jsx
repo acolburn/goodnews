@@ -100,6 +100,20 @@ const getFirstParagraph = (rawDescription) => {
   return firstParagraph ? firstParagraph.innerHTML : cleanDescription;
 };
 
+const getPublishedTimestamp = (item = {}) => {
+  const rawDate =
+    item.isoDate ||
+    item.pubDate ||
+    item.published ||
+    item.date ||
+    item.created ||
+    item.updated ||
+    "";
+
+  const parsed = Date.parse(rawDate);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
 function App() {
   const [posts, setPosts] = useState([]);
 
@@ -120,6 +134,8 @@ function App() {
         const feedItems = feedResponses
           .filter((result) => result.status === "fulfilled")
           .flatMap((result) => (result.value.data?.items ?? []).slice(0, 7))
+          .map((item) => ({ ...item, _publishedAt: getPublishedTimestamp(item) }))
+          .sort((a, b) => b._publishedAt - a._publishedAt)
           .slice(0, 28); // Up to 7 posts per feed
 
         // Render quickly with feed-provided images, then upgrade in the background.
