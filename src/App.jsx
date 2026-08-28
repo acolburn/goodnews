@@ -35,8 +35,11 @@ const getArticleImageFromNetlify = async (url) => {
 const decodeHtmlEntities = (text = "") => {
   if (!text) return "";
 
+  const repairedText = text
+    .replace(/â€œ|â€�/g, '"')
+    .replace(/â€™/g, "'");
   const textarea = document.createElement("textarea");
-  textarea.innerHTML = text.replace(
+  textarea.innerHTML = repairedText.replace(
     /and(#(?:x[0-9a-f]+|\d+)|[a-z]+);/gi,
     "&$1;",
   );
