@@ -29,20 +29,19 @@ const getArticleImageFromNetlify = async (url) => {
   }
 };
 
-// Decode HTML entities in a string
-// This is necessary because some feeds may encode HTML entities multiple times
-// For example, &amp; becomes &. I had issues with #039;
+// Decode HTML entities in a string.
+// Some feeds turn the leading ampersand into "and", such as andquot;.
 
 const decodeHtmlEntities = (text = "") => {
   if (!text) return "";
 
   const textarea = document.createElement("textarea");
-  textarea.innerHTML = text;
+  textarea.innerHTML = text.replace(
+    /and(#(?:x[0-9a-f]+|\d+)|[a-z]+);/gi,
+    "&$1;",
+  );
 
-  // const onceDecoded = textarea.value;
-  // textarea.innerHTML = onceDecoded;
-
-  return textarea.value.replace(/and#0*39;/g, "'");
+  return textarea.value;
 };
 
 const getPreviewImage = async (url, options = {}) => {
