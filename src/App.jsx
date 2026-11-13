@@ -116,8 +116,33 @@ const getPublishedTimestamp = (item = {}) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
+function SkeletonCard() {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-white/80 bg-white/86 shadow-[0_14px_36px_rgba(15,23,42,0.09)] backdrop-blur">
+      <div className="aspect-16/10 animate-pulse bg-slate-200" />
+      <div className="space-y-5 p-7 sm:p-8">
+        <div className="flex items-center justify-between gap-3">
+          <div className="h-5 w-20 animate-pulse rounded-full bg-slate-200" />
+          <div className="h-4 w-10 animate-pulse rounded bg-slate-200" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-7 w-11/12 animate-pulse rounded bg-slate-200" />
+          <div className="h-7 w-2/3 animate-pulse rounded bg-slate-200" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
+          <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
+          <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+        </div>
+        <div className="h-4 w-24 animate-pulse rounded bg-slate-200" />
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -155,6 +180,7 @@ function App() {
         });
 
         setPosts(articleCards);
+        setLoading(false);
 
         feedItems.forEach(async (item) => {
           const rawDescription = item.description || "";
@@ -178,6 +204,7 @@ function App() {
         if (axios.isCancel(err) || err.name === "CanceledError") return; // request was cancelled
         // Log other errors to the console for debugging
         console.error("Failed to fetch posts:", err);
+        setLoading(false);
       }
     }
 
@@ -195,6 +222,9 @@ function App() {
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.7),transparent_65%)]" />
       <Header />
       <section className="grid gap-7 lg:grid-cols-2">
+        {loading && posts.length === 0
+          ? Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} />)
+          : null}
         {posts.map((post) => (
           <article
             className="group overflow-hidden rounded-3xl border border-white/80 bg-white/86 shadow-[0_14px_36px_rgba(15,23,42,0.09)] backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(15,23,42,0.14)]"
