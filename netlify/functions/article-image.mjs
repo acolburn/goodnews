@@ -5,6 +5,40 @@ const allowedHosts = new Set([
   "www.positive.news",
 ]);
 
+const POSITIVE_NEWS_HOSTS = new Set(["positive.news", "www.positive.news"]);
+
+// positive.news article pages sit behind a bot challenge, but their public
+// WordPress REST API is reachable, so resolve featured images through it.
+const getPositiveNewsImage = async (pageUrl) => {
+  const slug = new URL(pageUrl).pathname.split("/").filter(Boolean).pop();
+  if (!slug) return "";
+
+  const apiUrl = `https://www.positive.news/wp-json/wp/v2/posts?slug=${encodeURIComponent(slug)}&_embed=1`;
+
+  try {
+    const response = await fetch(apiUrl, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return "";
+
+    const posts = await response.json();
+    const media = posts?.[0]?._embedded?.["wp:featuredmedia"]?.[0];
+    if (!media) return "";
+
+    const sizes = media.media_details?.sizes || {};
+    return (
+      sizes["large-image"]?.source_url ||
+      sizes["1536x1536"]?.source_url ||
+      sizes["medium_large"]?.source_url ||
+      sizes.large?.source_url ||
+      media.source_url ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+};
+
 const getAttribute = (tag, attribute) => {
   const match = tag.match(
     new RegExp(`${attribute}\\s*=\\s*["']([^"']+)["']`, "i"),
@@ -79,6 +113,22 @@ export async function handler(event) {
   }
 
   try {
+    if (POSITIVE_NEWS_HOSTS.has(parsedUrl.hostname)) {
+      const image = await getPositiveNewsImage(pageUrl);
+
+      if (image) {
+        return {
+          statusCode: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=3600, s-maxage=86400",
+          },
+          body: JSON.stringify({ image }),
+        };
+      }
+    }
+
     const response = await fetch(pageUrl, {
       headers: {
         "User-Agent":
